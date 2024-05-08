@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package storage;
 
-option go_package = "github.com/NastyNobbo/go-file-storage/storage";
+option go_package = "/storage";
 
 service FileStorage {
   rpc CreateFile(CreateFileRequest) returns (CreateFileResponse);

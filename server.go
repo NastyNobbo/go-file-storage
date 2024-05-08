@@ -14,14 +14,16 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/NastyNobbo/go-file-storage/storage"
 	pb "github.com/NastyNobbo/go-file-storage/storage" // изменен импорт на правильный путь к protobuf-файлу
 )
 
 const storagePath = "./storage" // добавлена константа для пути к хранилищу файлов
 
-type server struct{}
+type server struct {
+	storage.UnimplementedFileStorageServer
+}
 
 func (s *server) CreateFile(ctx context.Context, req *pb.CreateFileRequest) (*pb.CreateFileResponse, error) {
 	fileID := generateFileID()
@@ -45,7 +47,7 @@ func (s *server) ReadFile(ctx context.Context, req *pb.ReadFileRequest) (*pb.Rea
 	return &pb.ReadFileResponse{File: data}, nil
 }
 
-func (s *server) UpdateFile(ctx context.Context, req *pb.UpdateFileRequest) (*emptypb.Empty, error) {
+func (s *server) UpdateFile(ctx context.Context, req *pb.UpdateFileRequest) (*pb.UpdateFileResponse, error) {
 	filePath := filepath.Join(storagePath, req.Id) // изменен путь к файлу
 
 	err := ioutil.WriteFile(filePath, req.File, 0644)
@@ -53,10 +55,10 @@ func (s *server) UpdateFile(ctx context.Context, req *pb.UpdateFileRequest) (*em
 		return nil, status.Errorf(codes.Internal, "Failed to update file: %v", err)
 	}
 
-	return &emptypb.Empty{}, nil
+	return &pb.UpdateFileResponse{}, nil
 }
 
-func (s *server) DeleteFile(ctx context.Context, req *pb.DeleteFileRequest) (*emptypb.Empty, error) {
+func (s *server) DeleteFile(ctx context.Context, req *pb.DeleteFileRequest) (*pb.DeleteFileResponse, error) {
 	filePath := filepath.Join(storagePath, req.Id) // изменен путь к файлу
 
 	err := os.Remove(filePath)
@@ -64,7 +66,7 @@ func (s *server) DeleteFile(ctx context.Context, req *pb.DeleteFileRequest) (*em
 		return nil, status.Errorf(codes.Internal, "Failed to delete file: %v", err)
 	}
 
-	return &emptypb.Empty{}, nil
+	return &pb.DeleteFileResponse{}, nil
 }
 
 func generateFileID() string {
