@@ -19,7 +19,7 @@ import (
 	pb "github.com/NastyNobbo/go-file-storage/storage" // изменен импорт на правильный путь к protobuf-файлу
 )
 
-const storagePath = "./storage" // добавлена константа для пути к хранилищу файлов
+const storagePath = "./files" // добавлена константа для пути к хранилищу файлов
 
 type server struct {
 	storage.UnimplementedFileStorageServer

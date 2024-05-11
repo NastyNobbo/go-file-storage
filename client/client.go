@@ -1,133 +1,58 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"io/ioutil"
-	"net/http"
-	"os"
+	"log"
+
+	"google.golang.org/grpc"
+
+	pb "github.com/NastyNobbo/go-file-storage/storage" // изменен импорт на правильный путь к protobuf-файлу
 )
 
-type FileInfo struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Size     int64  `json:"size"`
-	Hash     string `json:"hash"`
-	Uploaded string `json:"uploaded"`
-}
-
-type FilesList struct {
-	Files []FileInfo `json:"files"`
-}
-
-func request(method, url string, body interface{}) ([]byte, error) {
-	var buf bytes.Buffer
-	if body != nil {
-		err := json.NewEncoder(&buf).Encode(body)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	req, err := http.NewRequest(method, url, &buf)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	return ioutil.ReadAll(resp.Body)
-}
-
-func uploadFile(url string, filePath string) (FileInfo, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return FileInfo{}, err
-	}
-	defer file.Close()
-
-	fileStat, err := file.Stat()
-	if err != nil {
-		return FileInfo{}, err
-	}
-
-	fileBytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		return FileInfo{}, err
-	}
-
-	data := map[string]interface{}{
-		"name": fileStat.Name(),
-		"size": fileStat.Size(),
-		"data": fmt.Sprintf("%x", fileBytes),
-	}
-
-	body, err := request("POST", url, data)
-	if err != nil {
-		return FileInfo{}, err
-	}
-
-	var info FileInfo
-	err = json.Unmarshal(body, &info)
-	if err != nil {
-		return FileInfo{}, err
-	}
-
-	return info, nil
-}
-
-func getFilesList(url string) (FilesList, error) {
-	body, err := request("GET", url, nil)
-	if err != nil {
-		return FilesList{}, err
-	}
-
-	var list FilesList
-	err = json.Unmarshal(body, &list)
-	if err != nil {
-		return FilesList{}, err
-	}
-
-	return list, nil
-}
-
-func deleteFile(url, id string) error {
-	data := map[string]string{"id": id}
-	_, err := request("DELETE", url, data)
-	return err
-}
-
 func main() {
-	const serverURL = "http://localhost:8080/api"
-
-	// Upload a file
-	info, err := uploadFile(serverURL, "path/to/your/file")
+	conn, err := grpc.Dial(":50051", grpc.WithInsecure())
 	if err != nil {
-		fmt.Println("Error uploading file:", err)
-	} else {
-		fmt.Println("File uploaded successfully:", info)
+		log.Fatalf("Failed to connect: %v", err)
 	}
+	defer conn.Close()
 
-	// Get files list
-	list, err := getFilesList(serverURL)
-	if err != nil {
-		fmt.Println("Error getting files list:", err)
-	} else {
-		fmt.Println("Files list:", list)
-	}
+	client := pb.NewFileStorageClient(conn)
 
-	// Delete a file
-	err = deleteFile(serverURL, "file_id")
+	// Пример вызова метода CreateFile
+	createFileResponse, err := client.CreateFile(context.Background(), &pb.CreateFileRequest{
+		File: []byte("Hello, gRPC!"),
+	})
 	if err != nil {
-		fmt.Println("Error deleting file:", err)
-	} else {
-		fmt.Println("File deleted successfully")
+		log.Fatalf("Error creating file: %v", err)
 	}
+	fmt.Printf("File created with ID: %s\n", createFileResponse.Id)
+
+	// Пример вызова метода ReadFile
+	readFileResponse, err := client.ReadFile(context.Background(), &pb.ReadFileRequest{
+		Id: createFileResponse.Id,
+	})
+	if err != nil {
+		log.Fatalf("Error reading file: %v", err)
+	}
+	fmt.Printf("File content: %s\n", readFileResponse.File)
+
+	// Пример вызова метода UpdateFile
+	updateFileResponse, err := client.UpdateFile(context.Background(), &pb.UpdateFileRequest{
+		Id:   createFileResponse.Id,
+		File: []byte("Hello, updated gRPC!"),
+	})
+	if err != nil {
+		log.Fatalf("Error updating file: %v", err)
+	}
+	fmt.Printf("File updated: %v\n", updateFileResponse)
+
+	// Пример вызова метода DeleteFile
+	deleteFileResponse, err := client.DeleteFile(context.Background(), &pb.DeleteFileRequest{
+		Id: createFileResponse.Id,
+	})
+	if err != nil {
+		log.Fatalf("Error deleting file: %v", err)
+	}
+	fmt.Printf("File deleted: %v\n", deleteFileResponse)
 }
