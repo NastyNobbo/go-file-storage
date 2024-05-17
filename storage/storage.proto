@@ -5,22 +5,25 @@ package storage;
 option go_package = "/storage";
 
 service FileStorage {
-  rpc CreateFile(CreateFileRequest) returns (CreateFileResponse);
-  rpc ReadFile(ReadFileRequest) returns (ReadFileResponse);
-  rpc UpdateFile(UpdateFileRequest) returns (UpdateFileResponse);
-  rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse);
+  rpc CreateFile (CreateFileRequest) returns (CreateFileResponse);
+  rpc ReadFile (ReadFileRequest) returns (ReadFileResponse);
+  rpc UpdateFile (UpdateFileRequest) returns (UpdateFileResponse);
+  rpc DeleteFile (DeleteFileRequest) returns (DeleteFileResponse);
 }
 
 message CreateFileRequest {
   bytes file = 1;
+  string extension = 2;
 }
 
 message CreateFileResponse {
   string id = 1;
+  string extension = 2;
 }
 
 message ReadFileRequest {
   string id = 1;
+  string extension = 2;
 }
 
 message ReadFileResponse {
@@ -30,12 +33,14 @@ message ReadFileResponse {
 message UpdateFileRequest {
   string id = 1;
   bytes file = 2;
+  string extension = 3;
 }
 
 message UpdateFileResponse {}
 
 message DeleteFileRequest {
   string id = 1;
+  string extension = 2;
 }
 
 message DeleteFileResponse {}

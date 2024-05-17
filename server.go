@@ -16,10 +16,10 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/NastyNobbo/go-file-storage/storage"
-	pb "github.com/NastyNobbo/go-file-storage/storage" // изменен импорт на правильный путь к protobuf-файлу
+	pb "github.com/NastyNobbo/go-file-storage/storage"
 )
 
-const storagePath = "./files" // добавлена константа для пути к хранилищу файлов
+const storagePath = "./files"
 
 type server struct {
 	storage.UnimplementedFileStorageServer
@@ -27,18 +27,28 @@ type server struct {
 
 func (s *server) CreateFile(ctx context.Context, req *pb.CreateFileRequest) (*pb.CreateFileResponse, error) {
 	fileID := generateFileID()
-	filePath := filepath.Join(storagePath, fileID) // изменен путь к файлу
+	fileExt := req.Extension
+
+	if len(fileExt) == 0 {
+		fileExt = ".txt"
+	}
+
+	if len(fileExt) > 1 && fileExt[0] != '.' {
+		fileExt = "." + fileExt
+	}
+
+	filePath := filepath.Join(storagePath, fileID+fileExt)
 
 	err := ioutil.WriteFile(filePath, req.File, 0644)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to create file: %v", err)
 	}
 
-	return &pb.CreateFileResponse{Id: fileID}, nil
+	return &pb.CreateFileResponse{Id: fileID, Extension: fileExt}, nil
 }
 
 func (s *server) ReadFile(ctx context.Context, req *pb.ReadFileRequest) (*pb.ReadFileResponse, error) {
-	filePath := filepath.Join(storagePath, req.Id) // изменен путь к файлу
+	filePath := filepath.Join(storagePath, req.Id+req.Extension)
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "File not found: %v", err)
@@ -48,8 +58,7 @@ func (s *server) ReadFile(ctx context.Context, req *pb.ReadFileRequest) (*pb.Rea
 }
 
 func (s *server) UpdateFile(ctx context.Context, req *pb.UpdateFileRequest) (*pb.UpdateFileResponse, error) {
-	filePath := filepath.Join(storagePath, req.Id) // изменен путь к файлу
-
+	filePath := filepath.Join(storagePath, req.Id+req.Extension)
 	err := ioutil.WriteFile(filePath, req.File, 0644)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to update file: %v", err)
@@ -59,7 +68,7 @@ func (s *server) UpdateFile(ctx context.Context, req *pb.UpdateFileRequest) (*pb
 }
 
 func (s *server) DeleteFile(ctx context.Context, req *pb.DeleteFileRequest) (*pb.DeleteFileResponse, error) {
-	filePath := filepath.Join(storagePath, req.Id) // изменен путь к файлу
+	filePath := filepath.Join(storagePath, req.Id+req.Extension)
 
 	err := os.Remove(filePath)
 	if err != nil {
@@ -80,9 +89,9 @@ func main() {
 	}
 
 	s := grpc.NewServer()
-	pb.RegisterFileStorageServer(s, &server{}) // изменен регистрационный метод на правильный
+	pb.RegisterFileStorageServer(s, &server{})
 
-	err = os.MkdirAll(storagePath, 0755) // изменен путь к хранилищу файлов
+	err = os.MkdirAll(storagePath, 0755)
 	if err != nil {
 		log.Fatalf("Failed to create storage directory: %v", err)
 	}

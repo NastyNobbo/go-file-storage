@@ -33,27 +33,48 @@ func main() {
 	fileIDEntry := widget.NewEntry()
 	fileIDEntry.SetPlaceHolder("Id файла")
 
+	extensionOptions := []string{".txt", ".docx", ".pdf"}
+	extensionSelect := widget.NewSelect(extensionOptions, func(s string) {
+		fmt.Println("Выбрано расширение:", s)
+	})
+	extensionSelect.PlaceHolder = "Расширение файла"
+
+	fileContent := widget.NewMultiLineEntry()
+	fileContent.SetPlaceHolder("Содержимое файла")
+
+	idAndExtension := container.NewGridWithColumns(2, fileIDEntry, extensionSelect)
+
 	createFileButton := widget.NewButton("Создание файла", func() {
+		extension := extensionSelect.Selected
+		if len(extension) == 0 {
+			dialog.ShowError(errors.New("Пожалуйста, выберите расширение файла"), w)
+			return
+		}
+
 		createFileResponse, err := client.CreateFile(context.Background(), &pb.CreateFileRequest{
-			File: []byte("Привет, я файл"),
+			File:      []byte(fileContent.Text),
+			Extension: extension,
 		})
 		if err != nil {
 			log.Printf("Error creating file: %v", err)
 			return
 		}
-		fmt.Printf("File created with ID: %s\n", createFileResponse.Id)
+		fmt.Printf("Файл создан с ID: %s\n", createFileResponse.Id)
 		fileIDEntry.SetText(createFileResponse.Id)
+		extensionSelect.PlaceHolder = "Расширение файла"
 	})
 
 	readFileButton := widget.NewButton("Чтение файла", func() {
 		fileID := fileIDEntry.Text
-		if fileID == "" {
-			dialog.ShowError(errors.New("Пожалуйста, введите ID файла"), w)
+		extension := extensionSelect.Selected
+		if len(fileID) == 0 || len(extension) == 0 {
+			dialog.ShowError(errors.New("Пожалуйста, введите ID и выберите расширение файла"), w)
 			return
 		}
 
 		readFileResponse, err := client.ReadFile(context.Background(), &pb.ReadFileRequest{
-			Id: fileID,
+			Id:        fileID,
+			Extension: extension,
 		})
 		if err != nil {
 			if err == ErrFileNotFound {
@@ -64,44 +85,49 @@ func main() {
 			}
 			return
 		}
-		dialog.ShowInformation("File Content", string(readFileResponse.File), w)
+		dialog.ShowInformation("Содержимое файла", string(readFileResponse.File), w)
 	})
 
 	updateFileButton := widget.NewButton("Обновить файл", func() {
 		fileID := fileIDEntry.Text
-		if fileID == "" {
-			dialog.ShowError(errors.New("Пожалуйста, введите ID файла"), w)
+		extension := extensionSelect.Selected
+		if len(fileID) == 0 || len(extension) == 0 {
+			dialog.ShowError(errors.New("Пожалуйста, введите ID и выберите расширение файла"), w)
 			return
 		}
 
 		updateFileResponse, err := client.UpdateFile(context.Background(), &pb.UpdateFileRequest{
-			Id:   fileID,
-			File: []byte("Привет, я обновлённый файл"),
+			Id:        fileID,
+			File:      []byte(fileContent.Text),
+			Extension: extension,
 		})
 		if err != nil {
 			log.Printf("Error updating file: %v", err)
 			return
 		}
-		fmt.Printf("File updated: %v\n", updateFileResponse)
+		fmt.Printf("Файл обновлён: %v\n", updateFileResponse)
 	})
 
 	deleteFileButton := widget.NewButton("Удаление файла", func() {
 		fileID := fileIDEntry.Text
-		if fileID == "" {
-			dialog.ShowError(errors.New("Пожалуйста, введите ID файла"), w)
+		extension := extensionSelect.Selected
+		if len(fileID) == 0 || len(extension) == 0 {
+			dialog.ShowError(errors.New("Пожалуйста, введите ID и выберите расширение файла"), w)
 			return
 		}
 
 		deleteFileResponse, err := client.DeleteFile(context.Background(), &pb.DeleteFileRequest{
-			Id: fileID,
+			Id:        fileID,
+			Extension: extension,
 		})
 		if err != nil {
 			log.Printf("Error deleting file: %v", err)
 			dialog.ShowError(errors.New("Файл не найден"), w)
 			return
 		}
-		fmt.Printf("File deleted: %v\n", deleteFileResponse)
+		fmt.Printf("Файл удалён: %v\n", deleteFileResponse)
 		fileIDEntry.SetText("")
+		extensionSelect.PlaceHolder = "Расширение файла"
 	})
 
 	buttons := container.NewGridWithColumns(2,
@@ -112,7 +138,8 @@ func main() {
 	)
 
 	content := container.NewVBox(
-		fileIDEntry,
+		idAndExtension,
+		fileContent,
 		buttons,
 	)
 
