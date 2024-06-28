@@ -25,36 +25,45 @@ import (
 	pb "C/storage"
 )
 
+// Объявляются глобальные переменные для хранения ошибки "файл не найден" и списка файлов
 var ErrFileNotFound = errors.New("file not found")
 var fileList = make(map[string]string)
 
 func main() {
-	dirPath := "C:/praktika/go-file-storage/files"
-
+	// Устанавливается путь к директории с файлами
+	dirPath, err := filepath.Abs("./files")
+	if err != nil {
+		log.Fatalf("Ошибка при получении абсолютного пути: %v", err)
+	}
+	// Считываются все файлы из директории
 	files, err := ioutil.ReadDir(dirPath)
 	if err != nil {
-		log.Fatalf("Error reading directory: %v", err)
+		log.Fatalf("Ошибка при чтении директории: %v", err)
 	}
 
+	// Для каждого файла извлекается имя и расширение, после чего они добавляются в список файлов
 	for _, file := range files {
 		if !file.IsDir() {
 			fileName := filepath.Base(file.Name())
 			ext := filepath.Ext(fileName)
 			fileList[strings.TrimSuffix(fileName, ext)] = ext
-			fmt.Printf("Added file: %s\n", fileName)
+			fmt.Printf("Добавлен файл: %s\n", fileName)
 		}
 	}
 
+	// Создается новое приложение и окно
 	a := app.New()
 	w := a.NewWindow("Задание")
 	w.Resize(fyne.NewSize(600, 300))
 
+	// Устанавливается соединение с gRPC-сервером
 	conn, err := grpc.Dial(":50051", grpc.WithInsecure())
 	if err != nil {
-		log.Fatalf("Failed to connect: %v", err)
+		log.Fatalf("Не удалось подключиться: %v", err)
 	}
 	client := pb.NewFileStorageClient(conn)
 
+	// Создаются элементы графического интерфейса для ввода ID файла, выбора его расширения и ввода содержимого файла
 	fileIDEntry := widget.NewEntry()
 	fileIDEntry.SetPlaceHolder("Id файла")
 
@@ -67,6 +76,7 @@ func main() {
 	fileContent := widget.NewMultiLineEntry()
 	fileContent.SetPlaceHolder("Содержимое файла")
 
+	// Создается элемент графического интерфейса для выбора файла из списка
 	fileSelect := widget.NewSelect(getFileList(), func(s string) {
 		fileIDEntry.SetText(s)
 		if ext, ok := fileList[s]; ok {
@@ -79,8 +89,10 @@ func main() {
 	})
 	fileSelect.PlaceHolder = "Выберите файл"
 
+	// Объединяются элементы графического интерфейса в контейнеры
 	idAndExtension := container.NewGridWithColumns(3, fileSelect, fileIDEntry, extensionSelect)
 
+	// Создаются кнопки для создания, чтения, обновления и удаления файлов
 	createFileButton := widget.NewButton("Создание файла", func() {
 		extension := extensionSelect.Selected
 		if len(extension) == 0 {
@@ -93,7 +105,7 @@ func main() {
 			Extension: extension,
 		})
 		if err != nil {
-			log.Printf("Error creating file: %v", err)
+			log.Printf("Ошибка при создании файла: %v", err)
 			return
 		}
 		fmt.Printf("Файл создан с ID: %s\n", createFileResponse.Id)
@@ -119,7 +131,7 @@ func main() {
 			if err == ErrFileNotFound {
 				dialog.ShowError(errors.New("Файл не найден"), w)
 			} else {
-				log.Printf("Error reading file: %v", err)
+				log.Printf("Ошибка при чтении файла: %v", err)
 				dialog.ShowError(errors.New("Файл не найден"), w)
 			}
 			return
@@ -146,7 +158,7 @@ func main() {
 			Extension: extension,
 		})
 		if err != nil {
-			log.Printf("Error updating file: %v", err)
+			log.Printf("Ошибка при обновлении файла: %v", err)
 			return
 		}
 		fmt.Printf("Файл обновлён: %v\n", updateFileResponse)
@@ -166,7 +178,7 @@ func main() {
 			Extension: extension,
 		})
 		if err != nil {
-			log.Printf("Error deleting file: %v", err)
+			log.Printf("Ошибка при удалении файла: %v", err)
 			dialog.ShowError(errors.New("Файл не найден"), w)
 			return
 		}
@@ -177,6 +189,7 @@ func main() {
 		fileSelect.Options = getFileList()
 	})
 
+	// Объединяются кнопки в контейнер
 	buttons := container.NewGridWithColumns(2,
 		createFileButton,
 		readFileButton,
@@ -184,18 +197,23 @@ func main() {
 		deleteFileButton,
 	)
 
+	// Объединяются все элементы графического интерфейса в контейнер
 	content := container.NewVBox(
 		idAndExtension,
 		fileContent,
 		buttons,
 	)
 
+	// Объединяются контейнеры в границу
 	border := container.NewBorder(content, buttons, nil, nil)
 
+	// Устанавливается содержимое окна и запускается приложение
 	w.SetContent(border)
 	w.ShowAndRun()
+
 }
 
+// Функция для получения списка файлов
 func getFileList() []string {
 	var list []string
 	for id := range fileList {
@@ -204,6 +222,7 @@ func getFileList() []string {
 	return list
 }
 
+// Функция для проверки наличия элемента в списке
 func contains(slice []string, s string) bool {
 	for _, item := range slice {
 		if item == s {
@@ -213,15 +232,17 @@ func contains(slice []string, s string) bool {
 	return false
 }
 
+// Функция для проверки, является ли файл изображением
 func isImage(data []byte, ext string) bool {
 	img, _, err := image.DecodeConfig(bytes.NewReader(data))
 	return err == nil && (ext == ".jpg" || ext == ".jpeg" || ext == ".png") && img.Width > 0 && img.Height > 0
 }
 
+// Функция для отображения изображения
 func showImage(data []byte, ext string, w fyne.Window) {
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
-		log.Printf("Error decoding image: %v", err)
+		log.Printf("Ошибка при декодировании изображения: %v", err)
 		dialog.ShowError(errors.New("Не удалось открыть изображение"), w)
 		return
 	}

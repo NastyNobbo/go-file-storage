@@ -2,14 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"crypto/rand"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -19,12 +17,15 @@ import (
 	pb "github.com/NastyNobbo/go-file-storage/storage"
 )
 
-const storagePath = "./files"
+// Путь к хранилищу файлов
+const storagePath = "./client/files"
 
+// Встраиваем нереализованный интерфейс хранилища файлов
 type server struct {
 	storage.UnimplementedFileStorageServer
 }
 
+// Метод для создания файла
 func (s *server) CreateFile(ctx context.Context, req *pb.CreateFileRequest) (*pb.CreateFileResponse, error) {
 	fileID := generateFileID()
 	fileExt := req.Extension
@@ -47,6 +48,7 @@ func (s *server) CreateFile(ctx context.Context, req *pb.CreateFileRequest) (*pb
 	return &pb.CreateFileResponse{Id: fileID, Extension: fileExt}, nil
 }
 
+// Метод для чтения файла
 func (s *server) ReadFile(ctx context.Context, req *pb.ReadFileRequest) (*pb.ReadFileResponse, error) {
 	filePath := filepath.Join(storagePath, req.Id+req.Extension)
 	data, err := ioutil.ReadFile(filePath)
@@ -57,6 +59,7 @@ func (s *server) ReadFile(ctx context.Context, req *pb.ReadFileRequest) (*pb.Rea
 	return &pb.ReadFileResponse{File: data}, nil
 }
 
+// Метод для обновления файла
 func (s *server) UpdateFile(ctx context.Context, req *pb.UpdateFileRequest) (*pb.UpdateFileResponse, error) {
 	filePath := filepath.Join(storagePath, req.Id+req.Extension)
 	err := ioutil.WriteFile(filePath, req.File, 0644)
@@ -67,6 +70,7 @@ func (s *server) UpdateFile(ctx context.Context, req *pb.UpdateFileRequest) (*pb
 	return &pb.UpdateFileResponse{}, nil
 }
 
+// Метод для удаления файла
 func (s *server) DeleteFile(ctx context.Context, req *pb.DeleteFileRequest) (*pb.DeleteFileResponse, error) {
 	filePath := filepath.Join(storagePath, req.Id+req.Extension)
 
@@ -78,8 +82,22 @@ func (s *server) DeleteFile(ctx context.Context, req *pb.DeleteFileRequest) (*pb
 	return &pb.DeleteFileResponse{}, nil
 }
 
+// Функция для генерации уникального идентификатора файла
 func generateFileID() string {
-	return strings.ReplaceAll(fmt.Sprintf("%v", time.Now().UnixNano()), "-", "")
+	const charset = "abcdefghijklmnopqrstuvwxyz" +
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	var seed = make([]byte, 16)
+
+	if _, err := rand.Read(seed); err != nil {
+		log.Fatal(err)
+	}
+
+	b := make([]byte, 16)
+	for i := range b {
+		b[i] = charset[seed[i]%byte(len(charset))]
+	}
+
+	return string(b)
 }
 
 func main() {
